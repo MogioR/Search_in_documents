@@ -288,6 +288,9 @@ class RelatedPhrasesService:
     # Remake index for good_phrases
     def reindex(self):
         for i, good_phrase in enumerate(self.good_phrases):
+            if good_phrase.text == 'тонус':
+                l = 1000
+
             documents_index = {}
             documents = list(good_phrase.documents_s.keys())
             related = self.related[i]
@@ -384,9 +387,10 @@ class RelatedPhrasesService:
                     related_index = self.related[Qp[x_index][0]].index(Qp[y_index][0])
                     to_del = set()
                     for document in current_documents:
+                        print(document)
                         if self.good_phrases[Qp[x_index][0]].documents_index[document][1][related_index][0] == 0:
                             to_del.add(document)
-                    current_documents = current_documents.intersection(to_del)
+                    current_documents = current_documents.difference(to_del)
 
                 # x_index and y_index has common related
                 elif len(set(self.related[Qp[x_index][0]]).intersection(set(self.related[Qp[y_index][0]]))) != 0:
