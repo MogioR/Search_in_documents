@@ -387,7 +387,6 @@ class RelatedPhrasesService:
                     related_index = self.related[Qp[x_index][0]].index(Qp[y_index][0])
                     to_del = set()
                     for document in current_documents:
-                        print(document)
                         if self.good_phrases[Qp[x_index][0]].documents_index[document][1][related_index][0] == 0:
                             to_del.add(document)
                     current_documents = current_documents.difference(to_del)
@@ -408,7 +407,9 @@ class RelatedPhrasesService:
                     current_documents = current_documents.intersection(
                         set(self.good_phrases[Qp[y_index][0]].documents_index.keys())
                     )
-        print(current_documents)
+        result = list(current_documents)
+        result.sort()
+        return result
 
     # Return index of good phrase by text, or -1 if phrase not good
     def check_good_phrase(self, phrase_text):

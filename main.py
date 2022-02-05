@@ -47,4 +47,4 @@ service.reindex()
 service.print_reindex_results('Reports/reindex.txt')
 
 service.sort_goods()
-service.search('массаж при тонус мышц')
+print(service.search('массаж при тонус мышц'))
