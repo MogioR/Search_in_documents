@@ -6,13 +6,12 @@ PHRASE_MAX_SIZE = 5
 P_THRESHOLD = 0.05
 S_THRESHOLD = 0.1
 I_THRESHOLD = 1.1
-RELATED_THRESHOLD = 3
+RELATED_THRESHOLD = 1.2
 
 ALPHABET = ["а", "б", "в", "г", "д", "е", "ё", "ж", "з", "и", "й", "к", "л", "м", "н", "о", " ",
             "п", "р", "с", "т", "у", "ф", "х", "ц", "ч", "ш", "щ", "ъ", "ы", "ь", "э", "ю", "я",
             "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q",
             "r", "s", "t", "u", "v", "w", "x", "y", "z", "."]
-
 
 class RelatedPhrasesService:
     def __init__(self):
@@ -408,8 +407,14 @@ class RelatedPhrasesService:
                         set(self.good_phrases[Qp[y_index][0]].documents_index.keys())
                     )
         result = list(current_documents)
-        result.sort()
-        return result
+
+        ranks = self.ranking_a(Qp, result)
+        ranks_results = []
+        for i in range(len(result)):
+            ranks_results.append([result[i], ranks[i]])
+
+        ranks_results.sort(key=lambda x: x[1], reverse=True)
+        return ranks_results
 
     # Return index of good phrase by text, or -1 if phrase not good
     def check_good_phrase(self, phrase_text):
@@ -417,3 +422,26 @@ class RelatedPhrasesService:
             if phrase.text == phrase_text:
                 return i
         return -1
+
+    def ranking_a(self, Qp, results):
+        results_score = [0 for _ in results]
+        phrases = [_[0] for _ in Qp]
+
+        for i, result in enumerate(results):
+            for phrase in phrases:
+                index_bin_vector = []
+                for document_index in self.good_phrases[phrase].documents_index[result][1]:
+                    index_bin_vector += document_index
+                results_score[i] += self.bin_num_to_num(index_bin_vector)
+
+        return results_score
+
+    # Return bin_num_vector in 10 number system
+    @staticmethod
+    def bin_num_to_num(bin_num_vector: list)->int:
+        result = 0
+        for i, x in enumerate(reversed(bin_num_vector)):
+            result += pow(2, i) * x
+        return result
+
+
