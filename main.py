@@ -1,26 +1,24 @@
+# -*- coding: utf-8 -*-
+
 import os
 from Modules.RelatedPhrasesService import RelatedPhrasesService
 
 service = RelatedPhrasesService()
 
-# text1 = 'Ремонт комода и направляющего сделан быстро, качественно и аккуратно. Очень понравился Александр. ' \
-#         'Он- хороший сотрудник, добросовестный и ответственный.'
-#
-# text2 = 'В комоде нужно было заменить направляющие. По моему мнению, тут даже лишних слов не надо: быстро, ' \
-#         'своевременно, аккуратно, качественно, без огрехов, недорого и красиво.'
-#
-# service.add_document(text1, 0)
-# service.add_document(text2, 1)
-
-# получим объект файла
-file1 = open("Data/orders.txt", "r", encoding='utf-8')
+file1 = open("Data/detskiy_masaj.txt", "r", encoding='utf-8')
 lines = file1.readlines()
 file1.close()
 
 for i, line in enumerate(lines):
-    service.add_document(line.strip(), i)
+    if i % 2 == 0:
+        service.add_document(line.strip(), i)
 
 service.mark_good()
+phrases_strings = service.print_phrases(True)
+with open('Reports/phrases_good.txt', 'w') as file:
+    file.writelines(phrases_strings)
+
+print('G matrix')
 service.generate_g_matrix()
 phrases_strings = service.print_g_matrix(service.g_matrix, service.good_phrases)
 with open('Reports/global.txt', 'w') as file:
@@ -37,14 +35,17 @@ phrases_strings = service.print_phrases(True)
 with open('Reports/phrases_good.txt', 'w') as file:
     file.writelines(phrases_strings)
 
+del phrases_strings
+
+print('Get_related')
 service.get_related()
 service.print_related('Reports/can_predict.txt')
-
+print('Get cluster_prediction')
 service.get_clusters_prediction()
 service.print_clusters_prediction('Reports/clusters_predict.txt')
-
+print('Get reindex')
 service.reindex()
 service.print_reindex_results('Reports/reindex.txt')
-
+print('Sort goods')
 service.sort_goods()
 print(service.search('массаж при тонус мышц'))

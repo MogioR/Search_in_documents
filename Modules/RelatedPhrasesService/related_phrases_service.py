@@ -1,17 +1,26 @@
 import re
-
+import sys
 from .phrase import Phrase
+from nltk.stem.snowball import SnowballStemmer
 
-PHRASE_MAX_SIZE = 5
+WINDOW_ONE_SIZE = 5
+WINDOW_TWO_SIZE = 30
+
 P_THRESHOLD = 0.05
 S_THRESHOLD = 0.1
-I_THRESHOLD = 1.1
-RELATED_THRESHOLD = 1.2
+
+I_THRESHOLD = 100
+RELATED_THRESHOLD = 101
 
 ALPHABET = ["а", "б", "в", "г", "д", "е", "ё", "ж", "з", "и", "й", "к", "л", "м", "н", "о", " ",
             "п", "р", "с", "т", "у", "ф", "х", "ц", "ч", "ш", "щ", "ъ", "ы", "ь", "э", "ю", "я",
             "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q",
-            "r", "s", "t", "u", "v", "w", "x", "y", "z", "."]
+            "r", "s", "t", "u", "v", "w", "x", "y", "z", ".", "1", "2", "3", "4", "5", "6", "7",
+            "8", "9", "0"]
+
+sys.setrecursionlimit(5000)
+stemmer = SnowballStemmer("russian")
+
 
 class RelatedPhrasesService:
     def __init__(self):
@@ -30,47 +39,55 @@ class RelatedPhrasesService:
         self.documents_count += 1
 
         sentences = RelatedPhrasesService.clear_text(text).split('.')
+        word_num = 0
         for sentence in sentences:
             words = sentence.strip().split(' ')
             for begin in range(len(words)):
-                for end in range(PHRASE_MAX_SIZE):
-                    phrase_text = ' '.join(words[begin:begin+end+1])
+                for end in range(WINDOW_ONE_SIZE):
+                    phrase_words = words[begin:begin + end + 1]
+                    phrase_words_stemmed = [stemmer.stem(word) for word in phrase_words]
+                    phrase_text = ' '.join(phrase_words_stemmed)
 
                     if len(phrase_text) > 0:
                         if len(self.phrases) == 0 or phrase_text not in self.phrases.keys():
-                            self.phrases[phrase_text] = Phrase(phrase_text, document)
+                            self.phrases[phrase_text] = Phrase(phrase_text, document, word_num)
                         else:
-                            self.phrases[phrase_text].add(document)
+                            self.phrases[phrase_text].add(document, word_num)
 
-                    if begin+end+1 == len(words):
+                    if begin + end + 1 == len(words):
                         break
+                word_num += 1
 
     # Mark good phrases
     def mark_good(self):
         for item in self.phrases.values():
-            if item.p/self.documents_count >= P_THRESHOLD and item.s/self.documents_count >= S_THRESHOLD:
+            if item.p / self.documents_count >= P_THRESHOLD and item.s / self.documents_count >= S_THRESHOLD:
                 item.status = 'good_phrase'
-                item.e = item.p/self.documents_count
+                item.e = item.p / self.documents_count
                 self.good_phrases.append(item)
 
     # Generate co-occurrence matrix
     def generate_g_matrix(self):
         matrix = []
         for i, first_good in enumerate(self.good_phrases):
+            print(i)
             buf = []
             for j, second_good in enumerate(self.good_phrases):
                 # Documents with a both of goods
-                intersection_documents = set(first_good.documents_s.keys()
-                                             ).intersection(set(second_good.documents_s.keys()))
+                intersection_documents = set(first_good.position_in_documents.keys()
+                                             ).intersection(set(second_good.position_in_documents.keys()))
                 # Count of intersection
                 R = 0
                 for document in intersection_documents:
-                    R += first_good.documents_s[document]
+                    for first_pos in first_good.position_in_documents[document]:
+                        for second_pos in second_good.position_in_documents[document]:
+                            if abs(first_pos - second_pos) <= WINDOW_TWO_SIZE:
+                                R += 1
                 # Add to matrix
                 E = first_good.e * second_good.e
                 A = R / self.documents_count
                 I = A / E
-                buf.append([R, E, A, I])
+                buf.append(I)
 
                 if I > I_THRESHOLD and i != j:
                     first_good.predicts = True
@@ -131,37 +148,10 @@ class RelatedPhrasesService:
         text = re.sub(r'[.]+', '.', text)
         return text
 
-    def get_local_g_matrix(self, document):
-        goods = []
-        goods_indexes = []
-        for i, phrase in enumerate(self.phrases.values()):
-            if phrase.status == 'good_phrase' and document in phrase.documents_s.keys():
-                goods.append(phrase)
-                goods_indexes.append(i)
-
-        matrix = []
-        for i, first_good in enumerate(goods):
-            buf = []
-            for j, second_good in enumerate(goods):
-                # Documents with a both of goods
-                R = first_good.documents_s[document]
-                # Add to matrix
-                E = first_good.e * second_good.e
-                A = R / self.documents_count
-                I = A / E
-                buf.append([R, E, A, I])
-
-                if I > I_THRESHOLD and i != j:
-                    first_good.predicts = True
-                    second_good.can_predict.add(goods_indexes[i])
-
-            matrix.append(buf)
-        return matrix, goods
-
     @staticmethod
     def print_g_matrix(matrix, goods):
         strings = []
-        string = ''.join([' '*24])
+        string = ''.join([' ' * 24])
         for g in goods:
             string += "{0:33}".format(str(g.text))
             string += ' '
@@ -172,7 +162,7 @@ class RelatedPhrasesService:
             string = '{0:22}'.format(goods[i].text)
             string += ' '
             for item in row:
-                string += '[{0:7.3f},{1:7.3f},{2:7.3f},{3:7.3f}]'.format(item[0], item[1], item[2], item[3])
+                string += '[{0:22.3f}]'.format(item)
                 string += ' '
             string += '\n'
             strings.append(string)
@@ -185,7 +175,7 @@ class RelatedPhrasesService:
                 if phrase.status == 'good_phrase':
                     strings.append(str(phrase) + '\n')
             else:
-                strings.append(str(phrase)+ '\n')
+                strings.append(str(phrase) + '\n')
 
         return strings
 
@@ -194,7 +184,7 @@ class RelatedPhrasesService:
         for i, good in enumerate(self.good_phrases):
             related_buf = list()
             for j in range(len(self.good_phrases)):
-                I = self.g_matrix[j][i][3]
+                I = self.g_matrix[j][i]
                 if I >= RELATED_THRESHOLD and i != j:
                     related_buf.append([j, I])
 
@@ -203,6 +193,7 @@ class RelatedPhrasesService:
             goods_related.append([_[0] for _ in related_buf])
 
         self.related = goods_related
+        del self.g_matrix
 
     def print_related(self, file_name):
         with open(file_name, 'w') as file:
@@ -218,6 +209,7 @@ class RelatedPhrasesService:
         maps = list()
         predictions = list()
         for good_index, related_goods in enumerate(self.related):
+            print(good_index)
             # Find relations
             main_related = related_goods
             already_related = list([good_index] + main_related)
@@ -231,7 +223,7 @@ class RelatedPhrasesService:
                     for sub_r in related_:
                         if sub_r not in main_related and sub_r != good_index:
                             RelatedPhrasesService.add_related(current_predictions, self.related, already_related,
-                                                              good_index, main_r)
+                                                              good_index, main_r, 0)
                             current_predictions.append([good_index, main_r] + self.related[main_r])
                             add_cluster = True
                             break
@@ -253,28 +245,29 @@ class RelatedPhrasesService:
 
     @staticmethod
     def add_related(current_predictions: list, global_related: list, already_related: list, good_index: int,
-                    related_index: int):
+                    related_index: int, deep: int):
         already_related.append(related_index)
         related = global_related[related_index]
         for sub_r in related:
             if sub_r not in already_related:
                 current_predictions.append([related_index, sub_r])
-                RelatedPhrasesService.add_related(current_predictions, global_related, already_related, good_index,
-                                                  sub_r)
+                if deep < 500:
+                    RelatedPhrasesService.add_related(current_predictions, global_related, already_related, good_index,
+                                                      sub_r, deep+1)
 
-    def get_document_relative_stats(self):
-        phrases_documents = list()
-        for good in self.good_phrases:
-            phrases_documents.append([])
-            for d in good.documents_s.keys():
-                phrases_documents[-1].append(d)
+    # def get_document_relative_stats(self):
+    #     phrases_documents = list()
+    #     for good in self.good_phrases:
+    #         phrases_documents.append([])
+    #         for d in good.documents_s.keys():
+    #             phrases_documents[-1].append(d)
 
     # Generate file with clusters_prediction
     def print_clusters_prediction(self, file_name):
         with open(file_name, 'w') as file:
             for index, good_cluster in enumerate(self.predictions):
                 if len(good_cluster) > 0:
-                    file.write('-------------------- '+self.good_phrases[index].text + ' ------------------\n')
+                    file.write('-------------------- ' + self.good_phrases[index].text + ' ------------------\n')
                     for phrase_index in self.predictions_maps[index]:
                         file.write('{0:20}\t'.format(self.good_phrases[phrase_index].text))
                     file.write(' \n')
@@ -291,21 +284,36 @@ class RelatedPhrasesService:
                 l = 1000
 
             documents_index = {}
-            documents = list(good_phrase.documents_s.keys())
+            documents = list(good_phrase.position_in_documents.keys())
             related = self.related[i]
+
             for document in documents:
                 related_phrase_counts = []
                 related_bit_vector = []
+                positions_in_document_main = good_phrase.position_in_documents[document]
                 for r in related:
                     count = 0
                     bit_vector = [0, 0]
-                    if document in list(self.good_phrases[r].documents_s.keys()):
-                        count = self.good_phrases[r].documents_s[document]
+                    if document in list(self.good_phrases[r].position_in_documents.keys()):
+                        for pos_in_document_r in self.good_phrases[r].position_in_documents[document]:
+                            for pos_in_document_m in positions_in_document_main:
+                                if abs(pos_in_document_r - pos_in_document_m) < WINDOW_TWO_SIZE:
+                                    count += 1
                         bit_vector[0] = 1
 
+                    break_flag = False
+
                     for sub_rel in self.related[r]:
-                        if document in list(self.good_phrases[sub_rel].documents_s.keys()):
-                            bit_vector[1] = 1
+                        if document in list(self.good_phrases[sub_rel].position_in_documents.keys()):
+                            for pos_in_document_m in positions_in_document_main:
+                                for pos_in_document_sr in self.good_phrases[sub_rel].position_in_documents[document]:
+                                    if abs(pos_in_document_m - pos_in_document_sr) < WINDOW_TWO_SIZE:
+                                        bit_vector[1] = 1
+                                        break_flag = True
+                                        break
+                                if break_flag:
+                                    break
+                        if break_flag:
                             break
 
                     related_phrase_counts.append(count)
@@ -314,6 +322,9 @@ class RelatedPhrasesService:
                 documents_index[document] = [related_phrase_counts, related_bit_vector]
 
             good_phrase.documents_index = documents_index
+
+    def deep_reindex(self):
+        pass
 
     def print_reindex_results(self, file_name: str):
         with open(file_name, 'w') as file:
@@ -352,8 +363,8 @@ class RelatedPhrasesService:
         for sentence in sentences:
             words = sentence.strip().split(' ')
             for begin in range(len(words)):
-                for end in range(PHRASE_MAX_SIZE):
-                    phrase_text = ' '.join(words[begin:begin+end+1])
+                for end in range(WINDOW_ONE_SIZE):
+                    phrase_text = ' '.join(words[begin:begin + end + 1])
                     if len(phrase_text) > 0:
                         possible_phrases.add(phrase_text)
 
@@ -379,7 +390,7 @@ class RelatedPhrasesService:
         # Intersection documents
         current_documents = set(self.good_phrases[Qp[0][0]].documents_index.keys())
 
-        for x_index in range(len(Qp)-1):
+        for x_index in range(len(Qp) - 1):
             for y_index in range(x_index, len(Qp)):
                 # x_index related with y_index
                 if Qp[y_index][0] in self.related[Qp[x_index][0]]:
@@ -432,16 +443,22 @@ class RelatedPhrasesService:
                 index_bin_vector = []
                 for document_index in self.good_phrases[phrase].documents_index[result][1]:
                     index_bin_vector += document_index
-                results_score[i] += self.bin_num_to_num(index_bin_vector)
+                results_score[i] += self.bin_to_num_simple(index_bin_vector)
 
         return results_score
 
     # Return bin_num_vector in 10 number system
     @staticmethod
-    def bin_num_to_num(bin_num_vector: list)->int:
+    def bin_num_to_num(bin_num_vector: list) -> int:
         result = 0
         for i, x in enumerate(reversed(bin_num_vector)):
             result += pow(2, i) * x
         return result
 
-
+    # Return rating by second ranking system
+    @staticmethod
+    def bin_to_num_simple(bin_num_vector: list) -> int:
+        result = 0
+        for i, x in enumerate(reversed(bin_num_vector)):
+            result += i * x
+        return result
