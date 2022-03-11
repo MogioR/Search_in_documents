@@ -1,16 +1,18 @@
 import re
 import sys
+import struct
 from .phrase import Phrase
+from Modules.MemoryArray import MemoryArray
 from nltk.stem.snowball import SnowballStemmer
 
 WINDOW_ONE_SIZE = 5
 WINDOW_TWO_SIZE = 30
 
-P_THRESHOLD = 0.05
-S_THRESHOLD = 0.1
+P_THRESHOLD = 0.1
+S_THRESHOLD = 0.2
 
-I_THRESHOLD = 100
-RELATED_THRESHOLD = 101
+I_THRESHOLD = 1.1
+RELATED_THRESHOLD = 1.2
 
 ALPHABET = ["а", "б", "в", "г", "д", "е", "ё", "ж", "з", "и", "й", "к", "л", "м", "н", "о", " ",
             "п", "р", "с", "т", "у", "ф", "х", "ц", "ч", "ш", "щ", "ъ", "ы", "ь", "э", "ю", "я",
@@ -21,12 +23,14 @@ ALPHABET = ["а", "б", "в", "г", "д", "е", "ё", "ж", "з", "и", "й", "�
 sys.setrecursionlimit(5000)
 stemmer = SnowballStemmer("russian")
 
+print([stemmer.stem(word) for word in ['детский', 'массаж']])
+
 
 class RelatedPhrasesService:
     def __init__(self):
         self.phrases: dict = dict()
         self.documents_count: int = 0
-        self.g_matrix = None
+        self.g_matrix_new = None
 
         self.good_phrases = list()
         self.sorted_goods_indexes = None
@@ -68,7 +72,9 @@ class RelatedPhrasesService:
 
     # Generate co-occurrence matrix
     def generate_g_matrix(self):
-        matrix = []
+        matrix_new = MemoryArray('g_matrix.bin', [len(self.good_phrases), len(self.good_phrases)], 4)
+
+        # matrix = []
         for i, first_good in enumerate(self.good_phrases):
             print(i)
             buf = []
@@ -87,15 +93,16 @@ class RelatedPhrasesService:
                 E = first_good.e * second_good.e
                 A = R / self.documents_count
                 I = A / E
-                buf.append(I)
+                matrix_new.set([i, j], struct.pack('>f', float(I)))
+                # buf.append(I)
 
                 if I > I_THRESHOLD and i != j:
                     first_good.predicts = True
                     second_good.can_predict.add(i)
 
-            matrix.append(buf)
+            # matrix.append(buf)
 
-        self.g_matrix = matrix
+        self.g_matrix_new = matrix_new
 
     # Mark not_match_I
     def mark_bad(self):
@@ -124,18 +131,23 @@ class RelatedPhrasesService:
             if phrase.status != 'good_phrase':
                 to_delete.append(i)
 
-        new_g_matrix = list()
-        for i in range(len(self.g_matrix)):
+        new_good_phrase_count = len(self.good_phrases) - len(to_delete)
+        matrix_new = MemoryArray('g_matrix_2.bin', [new_good_phrase_count, new_good_phrase_count], 4)
+
+        true_i = 0
+        true_j = 0
+
+        for i in range(self.g_matrix_new.directions[0]):
             if i not in to_delete:
-                new_row = list()
-                for j in range(len(self.g_matrix)):
+                for j in range(self.g_matrix_new.directions[0]):
                     if j not in to_delete:
-                        new_row.append(self.g_matrix[i][j])
-                new_g_matrix.append(new_row)
+                        matrix_new.set([i, j], self.g_matrix_new.get([true_i, true_j]))
+                        true_j += 1
+                true_i += 1
             else:
                 self.good_phrases.pop(i)
 
-        self.g_matrix = new_g_matrix
+        self.g_matrix_new = matrix_new
 
     # Return text with only letters and points at the end of sentences
     @staticmethod
@@ -184,7 +196,7 @@ class RelatedPhrasesService:
         for i, good in enumerate(self.good_phrases):
             related_buf = list()
             for j in range(len(self.good_phrases)):
-                I = self.g_matrix[j][i]
+                I = struct.unpack('>f', self.g_matrix_new.get([j, i]))[0]
                 if I >= RELATED_THRESHOLD and i != j:
                     related_buf.append([j, I])
 
@@ -193,7 +205,6 @@ class RelatedPhrasesService:
             goods_related.append([_[0] for _ in related_buf])
 
         self.related = goods_related
-        del self.g_matrix
 
     def print_related(self, file_name):
         with open(file_name, 'w') as file:

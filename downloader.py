@@ -26,30 +26,30 @@ CONFIG = {
 key = 'массаж детский'
 urls = []
 
-# river = GoogleXmlRiver(CONFIG)
-#
-# river.set_region('MOSCOW')
-# results = river.get_query_items_with_params(key, relatives=False, questions=False)
-# for site in results['sites']:
-#     urls.append(site.url)
-# river.set_region('MINSK')
-# results = river.get_query_items_with_params(key, relatives=False, questions=False)
-# for site in results['sites']:
-#     urls.append(site.url)
-# river.set_region('EKATERINBURG')
-# results = river.get_query_items_with_params(key, relatives=False, questions=False)
-# for site in results['sites']:
-#     urls.append(site.url)
-# river.set_region('SANKT-PETERBURG')
-# results = river.get_query_items_with_params(key, relatives=False, questions=False)
-# for site in results['sites']:
-#     urls.append(site.url)
-# river.set_region('VELIKII-NOVGOROD')
-# results = river.get_query_items_with_params(key, relatives=False, questions=False)
-# for site in results['sites']:
-#     urls.append(site.url)
-# with open("urls_backup.json", "w") as write_file:
-#     json.dump(urls, write_file)
+river = GoogleXmlRiver(CONFIG)
+
+river.set_region('MOSCOW')
+results = river.get_query_items_with_params(key, relatives=False, questions=False)
+for num, site in enumerate(results['sites']):
+    urls.append([site.url, num])
+river.set_region('MINSK')
+results = river.get_query_items_with_params(key, relatives=False, questions=False)
+for num, site in enumerate(results['sites']):
+    urls.append([site.url, num])
+river.set_region('EKATERINBURG')
+results = river.get_query_items_with_params(key, relatives=False, questions=False)
+for num, site in enumerate(results['sites']):
+    urls.append([site.url, num])
+river.set_region('SANKT-PETERBURG')
+results = river.get_query_items_with_params(key, relatives=False, questions=False)
+for num, site in enumerate(results['sites']):
+    urls.append([site.url, num])
+river.set_region('VELIKII-NOVGOROD')
+results = river.get_query_items_with_params(key, relatives=False, questions=False)
+for num, site in enumerate(results['sites']):
+    urls.append([site.url, num])
+with open("urls_backup.json", "w") as write_file:
+    json.dump(urls, write_file)
 
 
 import warnings
@@ -63,7 +63,7 @@ url_text = []
 with open('Data/detskiy_masaj.txt', 'w') as f:
     for url in data:
         try:
-            f.write(url_to_text(url) + '\n')
-            f.write(url+ '\n')
+            f.write(url_to_text(url[0]) + '\n')
+            f.write(str(url[1]) + ': ' + url[0] + '\n')
         except Exception as e:
             print("Url", url, "Exeption:", e)
