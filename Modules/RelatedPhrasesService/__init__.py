@@ -1,1 +1,2 @@
 from .related_phrases_service import RelatedPhrasesService
+from .related_phrases_new import RelatedPhrasesServiceNew

@@ -1,6 +1,6 @@
 class Phrase:
     def __init__(self, text: str, document: int, position: int, is_interesting: bool = False):
-        self.text: str = ""
+        self.text: str = text
         self.status: str = "possible_phrase"  # Stage
         self.bad_status: str = ""
         self.p: int = 1  # Count of documents has included
@@ -13,7 +13,6 @@ class Phrase:
         self.position_in_documents: dict = dict()   # Documents including with positions
         self.documents_index: dict = None
 
-        self.text = text
         self.position_in_documents[document] = [position]
 
         if is_interesting:
@@ -30,6 +29,31 @@ class Phrase:
         self.s += 1
         if is_interesting:
             self.m += 1
+
+    def __iadd__(self, other):
+        self.s += other.s
+
+        # Duplicates documents add
+        duplicate_keys_documents = (
+            set(
+                other.position_in_documents.keys()
+            ).intersection(
+                self.position_in_documents.keys()
+            )
+        )
+
+        for document_key in duplicate_keys_documents:
+            self.position_in_documents[document_key] += \
+                other.position_in_documents[document_key]
+            del other.position_in_documents[document_key]
+
+        # Other documents add
+        for document_key in other.position_in_documents.keys():
+            self.position_in_documents[document_key] = \
+                other.position_in_documents[document_key]
+
+        self.p = len(self.position_in_documents)
+        return self
 
     def __str__(self):
         e = '{0:7.3f}'.format(self.e) if self.e is not None else '   None'

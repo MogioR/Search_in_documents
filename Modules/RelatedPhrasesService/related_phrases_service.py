@@ -20,15 +20,12 @@ ALPHABET = ["а", "б", "в", "г", "д", "е", "ё", "ж", "з", "и", "й", "�
             "r", "s", "t", "u", "v", "w", "x", "y", "z", ".", "1", "2", "3", "4", "5", "6", "7",
             "8", "9", "0"]
 
-sys.setrecursionlimit(5000)
 stemmer = SnowballStemmer("russian")
-
-print([stemmer.stem(word) for word in ['детский', 'массаж']])
-
 
 class RelatedPhrasesService:
     def __init__(self):
         self.phrases: dict = dict()
+        self.documents_names: dict = dict()
         self.documents_count: int = 0
         self.g_matrix_new = None
 
@@ -37,6 +34,10 @@ class RelatedPhrasesService:
         self.related = None
         self.predictions = None
         self.predictions_maps = None
+
+    def __getstate__(self):
+        attributes = self.__dict__.copy()
+        return attributes
 
     # Add document to phrases
     def add_document(self, text: str, document: int):
@@ -62,6 +63,9 @@ class RelatedPhrasesService:
                         break
                 word_num += 1
 
+    def add_document_next(self, text: str):
+        self.add_document(text,  self.documents_count)
+
     # Mark good phrases
     def mark_good(self):
         for item in self.phrases.values():
@@ -76,7 +80,6 @@ class RelatedPhrasesService:
 
         # matrix = []
         for i, first_good in enumerate(self.good_phrases):
-            print(i)
             buf = []
             for j, second_good in enumerate(self.good_phrases):
                 # Documents with a both of goods

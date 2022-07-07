@@ -12,11 +12,17 @@ class MemoryArray:
         self.name = name
         self.directions = directions
         self.size_of_element = size_of_element
-        self.file_pointer = open(name, 'wb+')
+        self.file_pointer = None
+
+    def load(self, root=''):
+        self.file_pointer = open(root + self.name, 'rb+')
+
+    def create(self, root=''):
+        self.file_pointer = open(root + self.name, 'wb+')
 
         # File generate
         size = self.size_of_element
-        for direction in directions:
+        for direction in self.directions:
             size *= direction
 
         allocated = 0
@@ -63,4 +69,4 @@ class MemoryArray:
 
     def __del__(self):
         self.file_pointer.close()
-        os.remove(self.name)
+        # os.remove(self.name)
